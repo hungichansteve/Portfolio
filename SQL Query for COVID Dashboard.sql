@@ -34,3 +34,11 @@ From PortfolioProject..CovidDeath
 --Where location like '%states%'
 Group by Location, Population, date
 order by PercentPopulationInfected desc
+
+-- 5.
+Select Location, SUM(new_cases) as total_cases, SUM(cast(new_deaths as int)) as total_deaths, SUM(cast(new_deaths as int))/sum(new_cases)*100 as DeathPercentage
+From PortfolioProject.dbo.CovidDeath
+--Where location Like '%states%'
+Where continent is not null
+Group By Location
+Order By 1,2
