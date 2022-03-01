@@ -1,4 +1,2 @@
-# portfolio-DataAnalyst-Beginner
-
-Files in this Repository are just for my learning in data analysis using SQL, Python, Tableau. 
-All the contents inside based on the tutorials from Youtube Channel Alex The Analyst
+Files in this Repository are used to demonstrate my learning journey in data analysis using SQL, Python, and Tableau. 
+All the contents are based on the tutorials from Youtube Channel Alex The Analyst. But I had customized part of the files as the data set was updated, which is different from the tutorials.
