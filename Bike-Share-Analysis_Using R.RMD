@@ -1,0 +1,205 @@
+---
+title: 'Google Data Analytics Capstone Project:'
+author: "Hung Ip CHAN"
+date: '2022-03-28'
+output:
+  pdf_document: default
+  html_document: default
+subtitle: How Does a Bike-Share Navigate Speedy Success?"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### The scenario
+
+In this project, I will portray as a junior data analyst in the marketing analyst team at Cyclistic, a bike-share company in Chicago. Our director of marketing believes that maximizing the number of annual memberships will lead to the company's future success. And I am being assigned to identify the differences between casual riders and annual members when they use Cyclistic bikes so that the team can strategically influence causal riders to become members.
+
+ I will analyze the Cyclistic historical bike trip data for the past 12 months to identify trends and propose data-driven recommendations to achieve the goals.Let's begin!!
+ 
+
+### Step 1: Load the necessary libraries/packages
+
+```{r load_packages, results='hide', message=FALSE}
+if(!require(tidyverse)) install.packages("tidyverse" ,repos = "http://cran.us.r-project.org")
+if(!require(dplyr)) install.packages("dplyr" ,repos = "http://cran.us.r-project.org")
+if(!require(lubridate)) install.packages("lubridate" ,repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2" ,repos = "http://cran.us.r-project.org")
+if(!require(scales)) install.packages("scales" ,repos = "http://cran.us.r-project.org")
+
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(scales)
+```
+
+### Step 2: Import data
+
+After loading the required packages for the analysis, it's time to import the main dishes - the historical bike trip data for the last 12 months. As we got 12 csv files representing different time periods with same columns, the data files will then be merged (technically "Union" them) for easy analysis.
+
+
+```{r import_data, results=FALSE, message=FALSE}
+ df_bicycle <- list.files(pattern="*.csv", full.names = T) %>% 
+    map_dfr(~read_csv(.))
+```
+
+```{r drop_unneccsary_data, include=FALSE}
+df_bicycle <- df_bicycle[-14:-15]
+```
+
+### Step 3: Inspect the newly created dataframe
+
+Let's familiarize ourselves with the dataset by checking first/ last several rows of data.
+
+```{r preview_data, echo=TRUE}
+head(df_bicycle)
+tail(df_bicycle)
+```
+
+
+Besides the preview of data, the summaries of each column in our data should also be checked,for examplpe, data types, range of values, number of observations, and features of each column in our data. Now that we are familiar with the structure of our data.
+
+```{r summary_data, echo=TRUE}
+str(df_bicycle)
+```
+
+
+member_casusal column is one of the important features that will be used in the coming analysis, and nice to see it has no missing value.
+```{r check_null, echo=TRUE}
+colSums(is.na(df_bicycle))
+```
+
+### Step 4: Data Transform/ Cleaning
+
+As we checked strucutre previously, the data type of columns "started_at" and "ended_at" is marked as character. It is difficult to calculate the time difference for the length of ride. 
+Therefore, it is necessary to convert it into DateTime format. `mdy_hm` to match the order of formats and parse it into dates. 
+Also, some of the end dates for rides were marked earlier than the start date. It can be presumed to be data entered incorrectly by mixing two columns. The values of these two columns will interchange if the start date is larger than the end date.
+
+```{r transform_datatype, echo=TRUE}
+df_bicycle <- df_bicycle %>%
+  mutate(started_at = mdy_hm(started_at)) %>%
+  mutate(ended_at = mdy_hm(ended_at)) %>%
+  transform(started_at = pmin(started_at, ended_at), ended_at = pmax(started_at, ended_at))
+  
+head(df_bicycle[, c("started_at", "ended_at")])
+```
+
+### Step 5: Data Organization
+
+Now data types of the data frame are well-tuned. It's time to organize and engineer our data to prepare for analysis. Let's start with some calculations to get a better sense of the data. How about the length of each ride and the day of week for every observation?
+
+```{r mutate_columns, echo=TRUE}
+df_bicycle <- df_bicycle %>%
+  mutate(ride_length = difftime(ended_at, started_at, units="mins")) %>%
+  mutate(day_of_week = weekdays(started_at)) %>%
+  mutate(month = format(started_at, "%b"))
+
+head(df_bicycle[, c("ride_length", "day_of_week", "month")])
+```
+
+### Step 6: Data Analysis/ Differences spotting
+
+Time to answer our question - How do annual members and casual riders use Cyclistic bikes differently. To answer this question, statistic data in a row-level won't be enough. 
+
+The analysis will become more powerful when using some aggregate data. The below code chunk will be splitting the data frame based on different levels of granularities which would let us spot the differences immediately. 
+
+Two subsets of the original data frame will be created based on the following criteria, giving us to highlight the characteristics from different angles.
+
+* Member Types
+* Member Types & Day of Week
+* Member Types & Month
+
+```{r group_data_by_member, echo=TRUE, message=FALSE}
+df_bicycle_gp_by_member <- df_bicycle %>%
+  group_by(member_casual) %>%
+  summarise(average_ride_length = mean(ride_length),
+            num_of_ride = n(),
+            ) %>%
+  arrange(member_casual, desc(num_of_ride))
+
+df_bicycle_gp_by_member
+```
+The result shows that our annual members tend to enjoy more short rides while the causal customers usually take fewer rides but longer duration. Perhaps it might be related to the use of rides. Maybe our annual members commute to work by our bikes. Let's dip deeper into our data by grouping the data frame by member types and day of the week to verify our hypothesis.
+
+```{r group_data_by_member_month, echo=TRUE, message=FALSE}
+df_bicycle_gp_by_mem_month <- df_bicycle %>%
+  group_by(member_casual, month) %>%
+  summarise(average_ride_length = mean(ride_length),
+            num_of_ride = n(),
+            ) %>%
+  arrange(member_casual, desc(num_of_ride))
+
+slice_head(df_bicycle_gp_by_mem_month, n = 3)
+```
+It can only be concluded the popular season for our bike rental services is summer based on the top 3 highest number of rentals in each member type. It's hard to see the complete picture through the table. Therefore, a line chart would be constructed to observe the time-series changes in the visualization section.
+
+
+```{r group_data_by_member_weekday, echo=TRUE, message=FALSE}
+df_bicycle_gp_by_mem_day <- df_bicycle %>%
+  group_by(member_casual, day_of_week) %>%
+  summarise(average_ride_length = mean(ride_length),
+            num_of_ride = n()
+            ) %>%
+  arrange(member_casual,desc(num_of_ride))
+
+slice_head(df_bicycle_gp_by_mem_day, n = 3)
+```
+Now the differences between annual members and causal customers become clearer. Casual customers are more likely to spend their weekend time on our services, whereas annual members consume our services in weekday. 
+
+
+### Step 7: Data Visualization
+
+The data process and analysis are finally done and ready to tell the story behind it. The data table is boring and hard to deliver the data story to stakeholders, it's time to create compelling visualization to tell our insight!
+
+```{r bar_chart_count_day_of_week, echo=TRUE, message=FALSE}
+Day_of_week_Order <- c("Sunday", "Monday", 
+    "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+
+ggplot(data = df_bicycle_gp_by_mem_day) +
+  geom_bar(mapping = aes(fill = member_casual, x = factor(day_of_week, levels = Day_of_week_Order), y = num_of_ride), stat="identity", position = "dodge") +
+  theme(axis.text.x = element_text(angle = 45)) +
+  theme(axis.text.y = element_text(angle = 45)) +
+  scale_y_continuous(labels = unit_format(unit = "K", scale = 1e-3)) +
+  labs(title="Comparison of day of week by member type for bike ridings",
+       caption=paste0("Data from: Mar 2021 to Feb 2022"),
+       x="Day of Week",
+       y="Number of Rides")
+
+```
+The above plot shows that one of the main differences between casual riders and our annual members is the usage of our bikes. Annual members could be classified as commuters, whereas casual riders are leisure riders. The number of rides for casual riders skyrocketed during the weekend, while the number of rides for manual riders remained steady across the week.
+ 
+
+```{r linechart_monthly_trend, echo=TRUE, message=FALSE}
+
+
+ggplot(df_bicycle_gp_by_mem_month, aes(x = month, y = num_of_ride, group = member_casual)) +
+  geom_line(aes(color = member_casual)) +
+  labs(title="Bike Rentals per month by member type",
+       caption=paste0("Data from: Mar 2021 to Feb 2022"),
+       x="Months",
+       y="Number of Rentals") +
+  scale_y_continuous(labels = unit_format(unit = "K", scale = 1e-3))
+
+ 
+```
+
+
+
+```{r histogram_hour_timeseries, echo=TRUE, message=FALSE}
+
+ggplot(df_bicycle, aes(x = hour(started_at), color = member_casual)) +
+  geom_histogram(fill="white", position="dodge", bins = 12) +
+  scale_x_continuous(breaks = seq(0, 23, 2), labels = paste(seq(0, 23, 2), "00", sep = ":")) +
+  labs(title="Bike Rentals in hour-minute scale by member type",
+      caption=paste0("Data from: Mar 2021 to Feb 2022"),
+      x="Time",
+      y="Number of Rentals") 
+
+```
+The histogram further verifies our hypothesis that our annual members tend to use our bikes to commute as the peak number of rentals falls into 6:00 - 8:00  and 18:00 - 20:00, which are the commute time/ peak hours. The significant differences between annual members and casual riders during these hours are observed. For example, the number of bike rentals of annual members has more than doubled causal riders at 6 a.m. and 8 a.m. 
+
+### Conclusion
+We can conclude that the major difference between annual members and casual riders is the purpose of use. Considering that digital media has large user coverage and enormous influences in recent years, it is critical to use these advantages of digital media to maximize the number of annual memberships. For example, advertising the environmental and physical health benefits if everyone starts to take a bike to commute instead of cars. In addition, the company can then launch a promotion program to giveaway discounts/ rewards for newly registered annual members who take a rental during commuting time.
